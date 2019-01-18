@@ -1,7 +1,7 @@
 # selflearning
 
 #### Description
-{**When you're done, you can delete the content in this README and update the file with details for others getting started with your repository**}
+This is the project for event extraction and event coreferenece utilising SRL tools including DeepSRL, Semafor and Open-sesame. The coreference part utilising pre-trained Word2Vec binary model and/or frame embeddings.
 
 #### Software Architecture
 Software architecture description
