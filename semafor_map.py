@@ -12,7 +12,17 @@ from textblob import TextBlob
 from nltk.corpus import stopwords
 from nltk.tokenize.treebank import TreebankWordTokenizer
 import codecs
-import pipelineconf
+import pipelineconf as con
+
+def dirformat(path,arg):
+	if os.path.isdir(path):
+		return path
+	else:
+		if os.path.isdir(path[:-1]):
+			return path[:-1]
+		else:
+			print('Invalid path of arg %s. Please check again.'%arg)
+			os._exit(0)
 
 def get_files_name(file_dir,suffix):
 	L = []
@@ -27,8 +37,8 @@ def get_files_name(file_dir,suffix):
 
 def getsrl(filepath,srl_storing_path):
 	filename = os.path.splitext(os.path.basename(filepath))[0]
-	os.system(pipelineconf.conf['semafor_path']+'/bin/runSemafor.sh '+filepath+' '+srl_storing_path+filename+'.srl 1')
-	srlfile = srl_storing_path+filename+'.srl'
+	os.system(con.conf['semafor_path']+'/bin/runSemafor.sh '+filepath+' '+srl_storing_path+'/'+filename+'.srl 1')
+	srlfile = srl_storing_path+'/'+filename+'.srl'
 	return srlfile
 
 def spans(sentence,tokens):
@@ -84,10 +94,6 @@ def spans(sentence,tokens):
 				offset = trymid
 				yield [offset,offset+len(newguess)]
 				offset += len(newguess)
-
-def format_write(counter,f):
-	for x,y in counter.items():
-		f.write('	%s: %d\n'%(x,y))
 
 def compare_lists(updatelist,complist):
 	templist = list()
@@ -233,7 +239,7 @@ def main(trainingset_path,writing_path,expand,filt,srl_storing_path):
 	Motivation_pair_list = list()
 	Production_or_consumption_pair_list = list()
 
-	fun = open(writing_path+trainingset_path.split('/')[-1]+"_semafordiv.map",'w')
+	fun = codecs.open(writing_path+'/'+trainingset_path.split('/')[-1]+"_semafordiv.map",'w',encoding='utf8')
 	matchedpairs = list()
 	framepairs = list()
 	vbframelist = list()
@@ -241,14 +247,14 @@ def main(trainingset_path,writing_path,expand,filt,srl_storing_path):
 	adjframelist = list()
 
 	for file in gsd:
-		f = open(file,'r')
+		fann = codecs.open(file,'r',encoding='utf8')
 		basename = os.path.splitext(os.path.basename(file))[0]
-		lines = f.readlines()
-		f.close()
-		ftxt = open(trainingset_path+basename+".txt",'r')
+		annlines = fann.readlines()
+		fann.close()
+		ftxt = codecs.open(trainingset_path+'/'+basename+".txt",'r',encoding='utf8')
 		txtlines = ftxt.readlines()
 		ftxt.close()
-		fsent = open(writing_path+basename+".sent",'w')
+		fsent = codecs.open(writing_path+'/'+basename+".sent",'w',encoding='utf8')
 		fulltext = ''
 		sentences = list()
 		for ll in txtlines:
@@ -259,11 +265,12 @@ def main(trainingset_path,writing_path,expand,filt,srl_storing_path):
 					fsent.write(lsi+'\n')
 					sentences.append([lsi,fulltext.index(lsi),fulltext.index(lsi)+len(lsi)])
 		fsent.close()
-		if os.path.exists(srl_storing_path+filename+'.srl') == False:
-			srlfile = getsrl(writing_path+basename+".sent",srl_storing_path)
+		if os.path.exists(srl_storing_path+'/'+basename+'.srl') == False:
+			srlfile = getsrl(writing_path+'/'+basename+".sent",srl_storing_path)
 		else:
-			srlfile = srl_storing_path+filename+'.srl'
-		fsrl = open(srlfile)
+			srlfile = srl_storing_path+'/'+basename+'.srl'
+		os.remove(writing_path+'/'+basename+".sent")
+		fsrl = codecs.open(srlfile,encoding='utf8')
 		jsonlines = fsrl.readlines()
 		fsrl.close()
 		textbounds = list()
@@ -277,10 +284,10 @@ def main(trainingset_path,writing_path,expand,filt,srl_storing_path):
 		for token in text_span:
 			textbounds.append(str(token[0])+' '+str(token[1]))
 
-		for line in lines:
+		for line in annlines:
 			if line.startswith('E'):
 				trig = re.findall('^E.*?:(T\d+)',line)
-				for x in lines:
+				for x in annlines:
 					if re.search('^'+trig[0]+"	",x):
 						linestart = int(x.split('	')[1].split()[1])
 						lineend = int(x.split('	')[1].split()[-1])
@@ -526,7 +533,7 @@ def main(trainingset_path,writing_path,expand,filt,srl_storing_path):
 				Production_or_consumption_pair_list.append(frame)
 	
 	whole_pair_dict = {'Event':check_repeat_item(Event_pair_list),'Motivation':check_repeat_item(Motivation_pair_list),'Birth':check_repeat_item(Birth_pair_list),'Location':check_repeat_item(Location_pair_list),'Movement':check_repeat_item(Movement_pair_list),'Emigration':check_repeat_item(Emigration_pair_list),'Immigration':check_repeat_item(Immigration_pair_list),'Support_or_facilitation':check_repeat_item(Support_or_facilitation_pair_list),'Protest':check_repeat_item(Protest_pair_list),'Planning':check_repeat_item(Planning_pair_list),'Decision':check_repeat_item(Decision_pair_list),'Realisation':check_repeat_item(Realisation_pair_list),'Progress':check_repeat_item(Progress_pair_list),'Status_quo':check_repeat_item(Status_quo_pair_list),'Participation':check_repeat_item(Participation_pair_list),'Transformation':check_repeat_item(Transformation_pair_list),'Knowledge_acquisition_or_publication':check_repeat_item(Knowledge_acquisition_or_publication_pair_list),'Articulation':check_repeat_item(Articulation_pair_list),'Decline':check_repeat_item(Decline_pair_list),'Death':check_repeat_item(Death_pair_list),'Revival':check_repeat_item(Revival_pair_list),'Investment':check_repeat_item(Investment_pair_list),'Organisation_change':check_repeat_item(Organisation_change_pair_list),'Organisation_merge':check_repeat_item(Organisation_merge_pair_list),'Collaboration':check_repeat_item(Collaboration_pair_list),'Competition':check_repeat_item(Competition_pair_list),'Production_or_consumption':check_repeat_item(Production_or_consumption_pair_list)}
-	fdouble = open(writing_path+trainingset_path.split('/')[-1]+"_semaforframepairs.map",'w')
+	fdouble = codecs.open(writing_path+'/'+trainingset_path.split('/')[-1]+"_semaforframepairs.map",'w',encoding='utf8')
 	fdouble.write(js.dumps(whole_pair_dict))
 	fdouble.close()
 	if expand == False:
@@ -545,7 +552,7 @@ def main(trainingset_path,writing_path,expand,filt,srl_storing_path):
 	print([i for i in set(vbframelist) if i in set(adjframelist)])
 	print([i for i in set(nounframelist) if i in set(adjframelist)])"""
 	if filt == True:
-		fvn = open(writing_path+trainingset_path.split('/')[-1]+"_POS.map",'w')
+		fvn = codecs.open(writing_path+'/'+trainingset_path.split('/')[-1]+"_POS.map",'w',encoding='utf8')
 		if expand == False:
 			fvn.write(js.dumps(list(set(vbframelist))))
 			fvn.write("\n")
@@ -584,9 +591,12 @@ if __name__ == '__main__':
 	tokdic = {'-LRB-':'(','-RRB-':')','-LSB-':'[','-RSB-':']','-LCB-':'{','-RCB-':'}','``':'"',"''":'"'}
 	parser = argparse.ArgumentParser(description=__doc__)
 	parser.add_argument('--train',type=str,default='',required=True,help='The path to the folder contains ann file and raw txt.')
-	parser.add_argument('--write',type=str,default='repos/mappings/',help='The path to write mappings.')
+	parser.add_argument('--writepath',type=str,default=con.conf['repos_path']+'/repos/mappings',help='The path to write mappings.')
 	parser.add_argument('--expand',type=bool,default=True,help='Default set as use graph expansion.')
 	parser.add_argument('--filter',type=bool,default=True,help='Default set as use POS filter for mapping.')
-	parser.add_argument('--srlpath',type=str,default='repos/semafor_srl/',help='The path to store semafor annotation.')
+	parser.add_argument('--srlpath',type=str,default=con.conf['repos_path']+'/repos/semafor_srl',help='The path to store semafor annotation.')
 	args = parser.parse_args()
-	main(args.train,args.write,args.expand,args.filter,args.srlpath)
+	train = dirformat(args.train,'--train')
+	write = dirformat(args.writepath,'--writepath')
+	srl = dirformat(args.srlpath,'--srlpath')
+	main(train,write,args.expand,args.filter,srl)

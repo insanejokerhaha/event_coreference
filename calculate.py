@@ -1,6 +1,17 @@
 import os
 import sys
 import re
+import argparse
+
+def dirformat(path,arg):
+	if os.path.isdir(path):
+		return path
+	else:
+		if os.path.isdir(path[:-1]):
+			return path[:-1]
+		else:
+			print('Invalid path of arg %s. Please check again.'%arg)
+			os._exit(0)
 
 def get_files_name(file_dir,suffix):
 	L = []
@@ -22,17 +33,17 @@ def main(gsdpath,compath):
 	gsdevents = 0
 	extevents = 0
 	unfcount = 0
-	fFN = open("false_negatives.txt",'w')
-	fFP = open("false_positives.txt",'w')
+	fFN = open(compath+'/'+"false_negatives.txt",'w')
+	fFP = open(compath+'/'+"false_positives.txt",'w')
 	for file in gsdnames:
 		fFN.write(file+":\n")
-		fcontent = open(gsdpath+file+".txt",'r')
+		fcontent = open(gsdpath+'/'+file+".txt",'r')
 		content = fcontent.read()
 		fcontent.close()
-		f = open(gsdpath+file+".ann",'r')
+		f = open(gsdpath+'/'+file+".ann",'r')
 		lines = f.readlines()
 		f.close()
-		fcomp = open(compath+file+".a2",'r')
+		fcomp = open(compath+'/'+file+".a2",'r')
 		fcomplines = fcomp.readlines()
 		fcomp.close()
 		for line in lines:
@@ -102,5 +113,7 @@ if __name__ == '__main__':
 						required=True,
 						help='The folder of pipeline annotations.')
 	args = parser.parse_args()
-	main(args.gsdpath,args.compath)
+	gsdpath = dirformat(args.gsdpath,'--gsdpath')
+	compath = dirformat(args.compath,'--compath')
+	main(gsdpath,compath)
 

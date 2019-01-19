@@ -1,17 +1,4 @@
 # -*- coding:UTF-8 -*-
-from neural_srl.shared import *
-from neural_srl.shared.constants import *
-from neural_srl.shared.dictionary import Dictionary
-from neural_srl.shared.inference import *
-from neural_srl.shared.tagger_data import TaggerData
-from neural_srl.shared.measurements import Timer
-from neural_srl.shared.evaluation import SRLEvaluator
-from neural_srl.shared.io_utils import bio_to_spans
-from neural_srl.shared.reader import string_sequence_to_ids
-from neural_srl.shared.scores_pb2 import *
-from neural_srl.shared.tensor_pb2 import *
-from neural_srl.theano.tagger import BiLSTMTaggerModel
-from neural_srl.theano.util import floatX
 import argparse
 from itertools import izip
 import numpy
@@ -29,6 +16,31 @@ import pprint as pp
 from nltk.stem import WordNetLemmatizer
 import re
 from nltk.tokenize.treebank import TreebankWordTokenizer
+import pipelineconf as con
+sys.path.append(con.conf['DeepSRL'])
+from neural_srl.shared import *
+from neural_srl.shared.constants import *
+from neural_srl.shared.dictionary import Dictionary
+from neural_srl.shared.inference import *
+from neural_srl.shared.tagger_data import TaggerData
+from neural_srl.shared.measurements import Timer
+from neural_srl.shared.evaluation import SRLEvaluator
+from neural_srl.shared.io_utils import bio_to_spans
+from neural_srl.shared.reader import string_sequence_to_ids
+from neural_srl.shared.scores_pb2 import *
+from neural_srl.shared.tensor_pb2 import *
+from neural_srl.theano.tagger import BiLSTMTaggerModel
+from neural_srl.theano.util import floatX
+
+def dirformat(path,arg):
+	if os.path.isdir(path):
+		return path
+	else:
+		if os.path.isdir(path[:-1]):
+			return path[:-1]
+		else:
+			print('Invalid path of arg %s. Please check again.'%arg)
+			os._exit(0)
 
 def load_model(model_path, model_type):
 	config = configuration.get_config(os.path.join(model_path, 'config'))
@@ -106,11 +118,11 @@ def getluhengresult(tokenized_sent):
 def getsrl(filepath,srl_storing_path):
 	filename = os.path.splitext(os.path.basename(filepath))[0]
 	current = os.getcwd()
-	os.chdir(pipelineconf.conf['sesame_path'])
-	os.system('python2 '+pipelineconf.conf['sesame_path']+'/sesame/targetid.py --mode predict --model_name fn1.7-pretrained-targetid --raw_input '+filepath)
-	os.system('python2 '+pipelineconf.conf['sesame_path']+'/sesame/frameid.py --mode predict --model_name fn1.7-pretrained-frameid --raw_input /home/zhanghao/MscProject/open-sesame/logs/fn1.7-pretrained-targetid/predicted-targets.conll')
-	os.system('python2 '+pipelineconf.conf['sesame_path']+'/sesame/argid.py --mode predict --model_name fn1.7-pretrained-argid --raw_input /home/zhanghao/MscProject/open-sesame/logs/fn1.7-pretrained-frameid/predicted-frames.conll')
-	os.system('mv '+pipelineconf.conf['sesame_path']+'/logs/fn1.7-pretrained-argid/predicted-args.conll '+srl_storing_path+filename+'.conll')
+	os.chdir(con.conf['sesame_path'])
+	os.system('python2 '+con.conf['sesame_path']+'/sesame/targetid.py --mode predict --model_name fn1.7-pretrained-targetid --raw_input '+filepath)
+	os.system('python2 '+con.conf['sesame_path']+'/sesame/frameid.py --mode predict --model_name fn1.7-pretrained-frameid --raw_input '+con.conf['sesame_path']+'/logs/fn1.7-pretrained-targetid/predicted-targets.conll')
+	os.system('python2 '+con.conf['sesame_path']+'/sesame/argid.py --mode predict --model_name fn1.7-pretrained-argid --raw_input '+con.conf['sesame_path']+'/logs/fn1.7-pretrained-frameid/predicted-frames.conll')
+	os.system('mv '+con.conf['sesame_path']+'/logs/fn1.7-pretrained-argid/predicted-args.conll '+srl_storing_path+'/'+filename+'.conll')
 	os.chdir(current)
 	srlfile = srl_storing_path+filename+'.conll'
 	return srlfile
@@ -122,7 +134,7 @@ def spans(sentence,tokens):
 		#print(len(tokens[seq]))
 		try:
 			trymid = sentence.index(tokens[seq], offset)
-			if trymid-offset > 10:
+			if trymid-offset > 100:
 				try:
 					trymid = sentence.index(tokdic[tokens[seq]], offset)
 					offset = trymid
@@ -290,8 +302,8 @@ def splitframes(pairwise_frames):
 			frame2.append(eachframe)
 	return frame1, frame2
 
-def rewrite(readfile,mapping,framepairs,verbframemapping,nounframemapping,adjframemapping,writing_path,match_framepair,lex,filt,srl_storing_path):
-	Bioname = writing_path+os.path.splitext(os.path.basename(readfile))[0]
+def rewrite(readfile,mapping,framepairs,verbframemapping,nounframemapping,adjframemapping,writing_path,union,match_framepair,lex,filt,srl_storing_path):
+	Bioname = writing_path+'/'+os.path.splitext(os.path.basename(readfile))[0]
 	fread = codecs.open(readfile,'r',encoding='utf8')
 	lines = fread.readlines()
 	fa1 = codecs.open(Bioname+".a1",'w',encoding='utf8')
@@ -320,18 +332,14 @@ def rewrite(readfile,mapping,framepairs,verbframemapping,nounframemapping,adjfra
 	event_ent_relation = dict()
 	eventtypes = dict()
 	textbounds = list()
-	tokens = list()
+	tokens = [tk for senttk in tokenized for tk in senttk]
 	entityline = ''
 	triggerline = ''
-	if os.path.exists(srl_storing_path+filename+'.conll') == False:
-		importlabel = getsrl(sentpath+'.sent')
+	if os.path.exists(srl_storing_path+'/'+os.path.splitext(os.path.basename(readfile))[0]+'.conll') == False:
+		importlabel = getsrl(Bioname+'.sent',srl_storing_path)
 	else:
-		importlabel = srl_storing_path+filename+'.conll'
+		importlabel = srl_storing_path+'/'+os.path.splitext(os.path.basename(readfile))[0]+'.conll'
 	jsonlines = conllprocess(importlabel)
-	for li in jsonlines:
-		js_string = js.loads(li)
-		for tok in js_string["tokens"]:
-			tokens.append(tok)
 	text_span = spans(fulltext,tokens)
 	for token in text_span:
 		textbounds.append(str(token[0])+' '+str(token[1]))
@@ -1270,14 +1278,14 @@ if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description=__doc__)
 	parser.add_argument('--model',
 						type=str,
-						default='',
-						required=True,
-						help='SRL Model path.')
+						default=con.conf['DeepSRL_model'],
+						help='DeepSRL Model path.')
 
 	parser.add_argument('--pidmodel',
 						type=str,
-						default='',
-						help='Predicate identfication model path.')
+						default=con.conf['DeepSRL_pidmodel'],
+						help='DeepSRL Predicate identfication model path.')
+
 	parser.add_argument('--readpath',
 						type=str,
 						default='',
@@ -1285,8 +1293,7 @@ if __name__ == "__main__":
 						help='The folder of raw txt files.')
 	parser.add_argument('--writepath',
 						type=str,
-						default='annotations/',
-						required=True,
+						default=con.conf['repos_path']+'/repos/sesame_annotations',
 						help='The folder for storing brat format annotations.')
 	parser.add_argument('--lex',
 						type=bool,
@@ -1300,14 +1307,20 @@ if __name__ == "__main__":
 						type=bool,
 						default=True,
 						help='Default set as use frame pairs mapping.')
+	parser.add_argument('--union',
+						type=bool,
+						default=True,
+						help='Default set as union of DeepSRL and open-sesame.')
 	parser.add_argument('--setname',
 						type=str,
 						default='',
 						required = True,
 						help='The name of the mapping model(trainingset name).')
-	parser.add_argument('--srlpath',type=str,default='repos/sesame_srl/',help='The path to store semafor annotation.')
+	parser.add_argument('--srlpath',type=str,default=con.conf['repos_path']+'/repos/sesame_srl',help='The path to store sesame annotation.')
 	args = parser.parse_args()
-
+	read = dirformat(args.readpath,'--readpath')
+	write = dirformat(args.writepath,'--writepath')
+	srl = dirformat(args.srlpath,'--srlpath')
 	pid_model, pid_data = load_model(args.pidmodel, 'propid')
 	srl_model, srl_data = load_model(args.model, 'srl')
 	transition_params = get_transition_params(srl_data.label_dict.idx2str)
@@ -1330,7 +1343,7 @@ if __name__ == "__main__":
 		fpair.close()
 	else:
 		framepairs = list()
-	if args.filt:
+	if args.filter:
 		if os.path.exsits('repos/mappings/'+args.setname+'_sesamePOS.map'):
 			fpos = open('repos/mappings/'+args.setname+'_sesamePOS.map','r')
 			fposlines = fpos.readlines()
@@ -1340,13 +1353,13 @@ if __name__ == "__main__":
 			fpos.close()
 		else:
 			print("Please run doublemap.py first with --filter True")
-			os.exit(0)
+			os._exit(0)
 	else:
 		fposverbmap = list()
 		fposnounmap = list()
 		fposadjmap = list()
-	List, filenames = get_files_name(args.readpath,'.txt')
+	List, filenames = get_files_name(read,'.txt')
 	for l in List:
-		rewrite(l,mapping,framepairs,fposverbmap,fposnounmap,fposadjmap,args.writepath,args.framepair,args.lex,args.filter,args.srlpath)
+		rewrite(l,mapping,framepairs,fposverbmap,fposnounmap,fposadjmap,write,args.union,args.framepair,args.lex,args.filter,srl)
 		sys.stdout.flush()
 		time.sleep(1)

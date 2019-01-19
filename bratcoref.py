@@ -2,8 +2,21 @@ import gensim
 from gensim.models import Word2Vec
 import numpy
 import os
+from nltk.tokenize import sent_tokenize
 from nltk.tokenize.treebank import TreebankWordTokenizer
-import pipelineconf
+import pipelineconf as con
+import argparse
+import codecs
+
+def dirformat(path,arg):
+	if os.path.isdir(path):
+		return path
+	else:
+		if os.path.isdir(path[:-1]):
+			return path[:-1]
+		else:
+			print('Invalid path of arg %s. Please check again.'%arg)
+			os._exit(0)
 
 def get_files_name(file_dir,suffix):
 	L = []
@@ -22,13 +35,13 @@ def get_files_name(file_dir,suffix):
 def getsrl(filepath,srl_storing_path):
 	filename = os.path.splitext(os.path.basename(filepath))[0]
 	current = os.getcwd()
-	os.chdir(pipelineconf.conf['sesame_path'])
-	os.system('python2 '+pipelineconf.conf['sesame_path']+'/sesame/targetid.py --mode predict --model_name fn1.7-pretrained-targetid --raw_input '+filepath)
-	os.system('python2 '+pipelineconf.conf['sesame_path']+'/sesame/frameid.py --mode predict --model_name fn1.7-pretrained-frameid --raw_input /home/zhanghao/MscProject/open-sesame/logs/fn1.7-pretrained-targetid/predicted-targets.conll')
-	os.system('python2 '+pipelineconf.conf['sesame_path']+'/sesame/argid.py --mode predict --model_name fn1.7-pretrained-argid --raw_input /home/zhanghao/MscProject/open-sesame/logs/fn1.7-pretrained-frameid/predicted-frames.conll')
-	os.system('mv '+pipelineconf.conf['sesame_path']+'/logs/fn1.7-pretrained-argid/predicted-args.conll '+srl_storing_path+filename+'.conll')
+	os.chdir(con.conf['sesame_path'])
+	os.system('python2 '+con.conf['sesame_path']+'/sesame/targetid.py --mode predict --model_name fn1.7-pretrained-targetid --raw_input '+filepath)
+	os.system('python2 '+con.conf['sesame_path']+'/sesame/frameid.py --mode predict --model_name fn1.7-pretrained-frameid --raw_input /home/zhanghao/MscProject/open-sesame/logs/fn1.7-pretrained-targetid/predicted-targets.conll')
+	os.system('python2 '+con.conf['sesame_path']+'/sesame/argid.py --mode predict --model_name fn1.7-pretrained-argid --raw_input /home/zhanghao/MscProject/open-sesame/logs/fn1.7-pretrained-frameid/predicted-frames.conll')
+	os.system('mv '+con.conf['sesame_path']+'/logs/fn1.7-pretrained-argid/predicted-args.conll '+srl_storing_path+'/'+'/'+filename+'.conll')
 	os.chdir(current)
-	srlfile = srl_storing_path+filename+'.conll'
+	srlfile = srl_storing_path+'/'+filename+'.conll'
 	return srlfile
 
 def spans(sentence,tokens):
@@ -38,7 +51,7 @@ def spans(sentence,tokens):
 		#print(len(tokens[seq]))
 		try:
 			trymid = sentence.index(tokens[seq], offset)
-			if trymid-offset > 10:
+			if trymid-offset > 100:
 				try:
 					trymid = sentence.index(tokdic[tokens[seq]], offset)
 					offset = trymid
@@ -87,7 +100,7 @@ def vectorcheck(tokens):
 	return pos
 
 def conllprocess(file):
-	f = open(file,'r')
+	f = codecs.open(file,'r',encoding='utf8')
 	conlls = f.readlines()
 	f.close()
 	framelist = list()
@@ -144,13 +157,12 @@ def vectoraddup(tokens):
 			#print('out of vocabulary in arguments: %s'%token)
 			out_count += 1
 	if len(tokens) ==  out_count:
-		print("All tokens out of model:",tokens)
-		return 0, out_count
+		print("All tokens out of w2v model:",tokens)
+		return numpy.zeros((300,)), out_count
 	else:
-		vector = vectorlist[0]
+		vector = numpy.zeros((300,))
 		for vc in vectorlist:
 			vector = vector + vc
-		vector = vector - vectorlist[0]
 		return vector, out_count
 
 def framevectoraddup(trigger,args):
@@ -162,13 +174,26 @@ def framevectoraddup(trigger,args):
 		else:
 			#print('out of vocabulary in arguments: %s'%token)
 			out_count += 1
-	if len(args) ==  out_count:
-		print("All tokens of args out of model:",args)
-		return frame_model[trigger], out_count
+	if len(args) > 0 and len(args) ==  out_count:
+		print("Frame embedding, All tokens of args out of w2v model:",args)
+		print("frame embed: ",trigger, args)
+		vector = numpy.zeros((300,))
+		incount = 0
+		for trig in trigger:
+			if trig in frame_model:
+				incount += 1
+				vector += frame_model[trig]
+		return vector/incount, out_count
 	else:
-		vector = frame_model[trigger]
+		trigvector = numpy.zeros((300,))
+		incount = 0
+		for trig in trigger:
+			if trig in frame_model:
+				incount += 1
+				trigvector += frame_model[trig]
+		vector = trigvector/incount
 		for vc in vectorlist:
-			vector = vector + vc
+			vector += vc
 		return vector, out_count
 
 def cos_sim(va, vb):
@@ -180,77 +205,34 @@ def cos_sim(va, vb):
     #sim = 0.5 + 0.5 * cos
     return cos
 
-def rest_of_list(alist,num):
-	if num == 0:
-		return alist[1:]
-	elif num == len(alist):
-		return alist[:-1]
-	else:
-		return alist[0:num] + alist[num+1:-1]
-
-def main():
-	fa2 = open(readpath+name+'.a2','r')
-	a2 = fa2.readlines()
-	trigger = dict()
-	event = dict()
-	for siga2 in a2:
-		if siga2.startswith('T'):
-			siga2trig = splitline(siga2,'T')
-			trigger[siga2trig['ID']]=siga2trig
-		elif siga2.startswith('E'):
-			siga2evt = splitline(siga2,'E')
-			event[siga2evt['trigger']]=siga2evt
-	fa2.close()
-	return trigger, event
-
-if __name__ == '__main__':
-	parser = argparse.ArgumentParser(description=__doc__)
-	parser.add_argument('--frame',
-						type=bool,
-						default=False,
-						help='coreference on frame embeddings.')
-	parser.add_argument('--readpath',
-						type=str,
-						default='',
-						required=True,
-						help='The folder contains Bio-NLP Shared Task format files.')
-	parser.add_argument('--writepath',
-						type=str,
-						default='',
-						help='Optional writing path to Bio-NLP Shared Task format files with coreference annotations.')
-	args = parser.parse_args()
-	w2v_model = gensim.models.KeyedVectors.load_word2vec_format(pipelineconf.conf['w2v_model'], binary = True)
-	if args.frame:
-		frame_model = Word2Vec.load(pipelineconf.conf['frame_model'])
-	else:
-		frame_model = list()
-	tbtok = TreebankWordTokenizer()
-	files, names = get_files_name(args.readpath,'.txt')
+def main(readpath,writepath,srl_storing_path):
+	files, names = get_files_name(readpath,'.txt')
 	if args.frame:
 		for name in names:
 			print(name)
 			entdic, evtdic, trigdic = dict(), list(), dict()
-			ftxt = open(args.readpath+name+'.txt','r')
+			ftxt = codecs.open(readpath+'/'+name+'.txt','r',encoding='utf8')
 			txtlines = ftxt.readlines()
+			content = ''.join(txtlines)
 			ftxt.close()
-			fa1 = open(args.readpath+name+'.a1','r')
+			fa1 = codecs.open(readpath+'/'+name+'.a1','r',encoding='utf8')
 			fa1lines = fa1.readlines()
 			fa1.close()
-			fa2 = open(args.readpath+name+'.a2','r')
+			fa2 = codecs.open(readpath+'/'+name+'.a2','r',encoding='utf8')
 			fa2lines = fa2.readlines()
 			fa2.close()
-			if os.path.exists(srl_storing_path+filename+'.conll') == False:
-				fsent = open(basename+".sent",'w')
+			if os.path.exists(srl_storing_path+'/'+name+'.conll') == False:
+				fsent = codecs.open(basename+".sent",'w',encoding='utf8')
 				for ll in txtlines:
 					if ll != '\n':
 						ls = sent_tokenize(ll)
 						for lsi in ls:
 							fsent.write(lsi+'\n')
 				fsent.close()
+				sesamefile = getsrl(writing_path+'/'+name+".sent",srl_storing_path+'/')
 				os.remove(basename+".sent")
-				sesamefile = getsrl(writing_path+basename+".sent",srl_storing_path)
 			else:
-				sesamefile = srl_storing_path+filename+'.conll'
+				sesamefile = srl_storing_path+'/'+name+'.conll'
 					
 			importlabel = conllprocess(sesamefile)
 			
@@ -264,8 +246,20 @@ if __name__ == '__main__':
 					temp = splitline(a2line,'T')
 					trigdic[temp["ID"]] = splitline(a2line,'T')
 			evt_vec = dict()
-
+			tokenized = list()
+			for ll in txtlines:
+				if ll != '\n':
+					ls = sent_tokenize(ll)
+					for lsi in ls:
+						tokenized.append(TreebankWordTokenizer().tokenize(lsi.lstrip().rstrip()))
+			textbounds = list()
+			tokens = [tk for item in tokenized for tk in item]
+			text_span = spans(content, tokens)
+			for token in text_span:
+				textbounds.append(str(token[0])+' '+str(token[1]))
 			for evt in evtdic:
+				linestart = trigdic[evt['trigger']]['start']
+				lineend = trigdic[evt['trigger']]['end']
 				if importlabel[0]["tokens"] == 0:
 					readtokenNum = 0
 				else:
@@ -277,49 +271,78 @@ if __name__ == '__main__':
 						targ_end = int(textbounds[target["target"]["spans"][0]['end']+readtokenNum-1].split()[1])
 						assert targ_start < targ_end
 						if (targ_start >= linestart and targ_start < lineend) or (targ_end > linestart and targ_end <= lineend):
-							matched_frames.append({'start':targ_start,'end':targ_end,'startpos':postags[target["target"]["spans"][0]['start']][1],'endpos':postags[target["target"]["spans"][0]['end']-1][1],'frame':target["target"]['name'],'text':target["target"]["spans"][0]['text']})
+							matched_frames.append({'start':targ_start,'end':targ_end,'frame':target["target"]['name'],'text':target["target"]["spans"][0]['text']})
 					readtokenNum = len([i for tk in tokenized[:jsline["tokens"]+1] for i in tk])
 				if len(matched_frames) > 0:
 					if len(matched_frames) > 1:
 						print("Same trigger identified %i frames"%(len(matched_frames)))
-					trigger = [fr.upper() for fr in matched_frames]
+						print(evt)
+						print(matched_frames)
+						print('-------------------')
+					trigger = [fr['frame'].upper() for fr in matched_frames]
 					if len(evt["cause"]) > 0 and len(evt["theme"]) > 0:
-						agent = [i for x in evt["cause"] for i in tbtok.tokenize(fulltext[entdic[x]["start"]:entdic[x]["end"]])]
-						subject = [i for x in evt["theme"] for i in tbtok.tokenize(fulltext[entdic[x]["start"]:entdic[x]["end"]])]
+						agent = [i for x in evt["cause"] for i in tbtok.tokenize(content[entdic[x]["start"]:entdic[x]["end"]])]
+						subject = [i for x in evt["theme"] for i in tbtok.tokenize(content[entdic[x]["start"]:entdic[x]["end"]])]
 					elif len(evt["cause"]) == 0 and len(evt["theme"]) > 0:
 						agent = list()
-						subject = [i for x in evt["theme"] for i in tbtok.tokenize(fulltext[entdic[x]["start"]:entdic[x]["end"]])]
+						subject = [i for x in evt["theme"] for i in tbtok.tokenize(content[entdic[x]["start"]:entdic[x]["end"]])]
 					elif len(evt["cause"]) > 0 and len(evt["theme"]) == 0:
-						agent = [i for x in evt["cause"] for i in tbtok.tokenize(fulltext[entdic[x]["start"]:entdic[x]["end"]])]
+						agent = [i for x in evt["cause"] for i in tbtok.tokenize(content[entdic[x]["start"]:entdic[x]["end"]])]
 						subject = list()
 					elif len(evt["cause"]) == 0 and len(evt["theme"]) == 0:
 						agent = list()
 						subject = list()
-					if trigger in frame_model:
-						vec, outnum = framevectoraddup(agent + subject + trigger)
+					for trig in trigger:
+						if trig in frame_model:
+							vec, outnum = framevectoraddup(trigger,agent + subject)
+							evt_vec[evt["ID"]] = vec
+							break
+				else:
+					trigger = tbtok.tokenize(content[trigdic[evt["trigger"]]["start"]:trigdic[evt["trigger"]]["end"]])
+					validvec = vectorcheck(trigger)
+					if validvec:
+						if len(evt["cause"]) > 0 and len(evt["theme"]) > 0:
+							agent = [i for x in evt["cause"] for i in tbtok.tokenize(content[entdic[x]["start"]:entdic[x]["end"]])]
+							subject = [i for x in evt["theme"] for i in tbtok.tokenize(content[entdic[x]["start"]:entdic[x]["end"]])]
+						elif len(evt["cause"]) == 0 and len(evt["theme"]) > 0:
+							agent = list()
+							subject = [i for x in evt["theme"] for i in tbtok.tokenize(content[entdic[x]["start"]:entdic[x]["end"]])]
+						elif len(evt["cause"]) > 0 and len(evt["theme"]) == 0:
+							agent = [i for x in evt["cause"] for i in tbtok.tokenize(content[entdic[x]["start"]:entdic[x]["end"]])]
+							subject = list()
+						elif len(evt["cause"]) == 0 and len(evt["theme"]) == 0:
+							agent = list()
+							subject = list()
+						vec, outnum = vectoraddup(agent + subject + trigger)
 						evt_vec[evt["ID"]] = vec
-				
 			equiv_evt = list()
 			for k,v in evt_vec.items():
 				for ck, cv in evt_vec.items():
 					if k != ck and cos_sim(v,cv) > 0.9:
 						if [k,ck] not in equiv_evt and [ck,k] not in equiv_evt:
 							equiv_evt.append([k,ck])
-			fa2a = open(args.readpath+name+'.a2','a')
-			for pair in equiv_evt:
-				fa2a.write("*	Equiv %s %s\n"%(pair[0],pair[1]))
-			fa2a.close()
+			if os.path.exists(writepath):
+				os.system('cp -r %s %s'%(readpath,writepath))
+				fa2a = codecs.open(writepath+'/'+readpath.split('/')[-1]+'/'+name+'.a2','a',encoding='utf8')
+				for pair in equiv_evt:
+					fa2a.write("*	Equiv %s %s\n"%(pair[0],pair[1]))
+				fa2a.close()
+			else:
+				fa2a = codecs.open(readpath+'/'+name+'.a2','a',encoding='utf8')
+				for pair in equiv_evt:
+					fa2a.write("*	Equiv %s %s\n"%(pair[0],pair[1]))
+				fa2a.close()
 	else:
 		for name in names:
 			print(name)
 			entdic, evtdic, trigdic = dict(), list(), dict()
-			ftxt = open(args.readpath+name+'.txt','r')
+			ftxt = codecs.open(readpath+'/'+name+'.txt','r',encoding='utf8')
 			content = ftxt.read()
 			ftxt.close()
-			fa1 = open(args.readpath+name+'.a1','r')
+			fa1 = codecs.open(readpath+'/'+name+'.a1','r',encoding='utf8')
 			fa1lines = fa1.readlines()
 			fa1.close()
-			fa2 = open(args.readpath+name+'.a2','r')
+			fa2 = codecs.open(readpath+'/'+name+'.a2','r',encoding='utf8')
 			fa2lines = fa2.readlines()
 			fa2.close()
 			for a1line in fa1lines:
@@ -335,7 +358,7 @@ if __name__ == '__main__':
 
 			for evt in evtdic:
 				trigger = tbtok.tokenize(content[trigdic[evt["trigger"]]["start"]:trigdic[evt["trigger"]]["end"]])
-				validvec = vectorcheck(trigger,args)
+				validvec = vectorcheck(trigger)
 				if validvec:
 					if len(evt["cause"]) > 0 and len(evt["theme"]) > 0:
 						agent = [i for x in evt["cause"] for i in tbtok.tokenize(content[entdic[x]["start"]:entdic[x]["end"]])]
@@ -357,9 +380,49 @@ if __name__ == '__main__':
 					if k != ck and cos_sim(v,cv) > 0.9:
 						if [k,ck] not in equiv_evt and [ck,k] not in equiv_evt:
 							equiv_evt.append([k,ck])
-			fa2a = open(args.readpath+name+'.a2','a')
-			for pair in equiv_evt:
-				fa2a.write("*	Equiv %s %s\n"%(pair[0],pair[1]))
-			fa2a.close()
+			if os.path.exists(writepath):
+				os.system('cp -r %s %s'%(readpath,writepath))
+				fa2a = codecs.open(writepath+'/'+readpath.split('/')[-1]+'/'+name+'.a2','a',encoding='utf8')
+				for pair in equiv_evt:
+					fa2a.write("*	Equiv %s %s\n"%(pair[0],pair[1]))
+				fa2a.close()
+			else:
+				fa2a = codecs.open(readpath+'/'+name+'.a2','a',encoding='utf8')
+				for pair in equiv_evt:
+					fa2a.write("*	Equiv %s %s\n"%(pair[0],pair[1]))
+				fa2a.close()
 
+
+if __name__ == '__main__':
+	tokdic = {'-LRB-':'(','-RRB-':')','-LSB-':'[','-RSB-':']','-LCB-':'{','-RCB-':'}','``':'"',"''":'"'}
+	parser = argparse.ArgumentParser(description=__doc__)
+	parser.add_argument('--frame',
+						type=bool,
+						default=False,
+						help='coreference on frame embeddings.')
+	parser.add_argument('--readpath',
+						type=str,
+						default='',
+						required=True,
+						help='The folder contains Bio-NLP Shared Task format files.')
+	parser.add_argument('--writepath',
+						type=str,
+						default='',
+						help='Optional writing path to Bio-NLP Shared Task format files with coreference annotations.')
+	parser.add_argument('--srlpath',type=str,default=con.conf['repos_path']+'/repos/sesame_srl',help='The path to store sesame annotation.')
+	args = parser.parse_args()
+	read = dirformat(args.readpath,'--readpath')
+	srl = dirformat(args.srlpath,'--srlpath')
+	if args.writepath != '':
+		write = dirformat(args.writepath,'--writepath')
+	else:
+		write = args.writepath
+	w2v_model = gensim.models.KeyedVectors.load_word2vec_format(con.conf['w2v_model'], binary = True)
+	if args.frame:
+		frame_model = Word2Vec.load(con.conf['frame_model'])
+	else:
+		frame_model = list()
+	tbtok = TreebankWordTokenizer()
+	main(read,write,srl)
+	
 

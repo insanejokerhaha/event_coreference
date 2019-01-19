@@ -1,5 +1,16 @@
 import os
 import shutil
+import argparse
+
+def dirformat(path,arg):
+	if os.path.isdir(path):
+		return path
+	else:
+		if os.path.isdir(path[:-1]):
+			return path[:-1]
+		else:
+			print('Invalid path of arg %s. Please check again.'%arg)
+			os._exit(0)
 
 def get_files_name(file_dir,suffix):
 	L = []
@@ -36,8 +47,8 @@ def splitline(line,start):
 		return linedict
 
 def getmyfile(readpath,name):
-	fa1 = open(readpath+name+'.a1','r')
-	fa2 = open(readpath+name+'.a2','r')
+	fa1 = open(readpath+'/'+name+'.a1','r')
+	fa2 = open(readpath+'/'+name+'.a2','r')
 	a1 = fa1.readlines()
 	entity = dict()
 	for siga1 in a1:
@@ -57,9 +68,9 @@ def getmyfile(readpath,name):
 	fa2.close()
 	return entity, trigger, event
 			
-def getrizafile(name):
-	fa1 = open(args.art+name+'.a1','r')
-	fa2 = open(args.art+name+'.a2','r')
+def getrizafile(name,path):
+	fa1 = open(path+'/'+name+'.a1','r')
+	fa2 = open(path+'/'+name+'.a2','r')
 	a1 = fa1.readlines()
 	entity = dict()
 	for siga1 in a1:
@@ -79,9 +90,9 @@ def getrizafile(name):
 	fa2.close()
 	return entity, trigger, event
 
-def getner(name):
+def getner(name,path):
 	try:
-		fner = open(args.ner+name+'.ann','r')
+		fner = open(path+'/'+name+'.ann','r')
 		ner = fner.readlines()
 		rightner = list()
 		for signer in ner:
@@ -89,8 +100,8 @@ def getner(name):
 			rightner.append(signerdict)
 		return rightner
 	except FileNotFoundError as fe:
-		print("File "args.ner+name+'.ann Not Found')
-		return False
+		print("File "+args.ner+name+'.ann Not Found')
+		raise fe
 
 def countnumber(listofdict,entset):
 	a = 0
@@ -285,21 +296,19 @@ def check_exist_entity(fa1,fa2,entitypair,Tnum,existing_entity,role):
 		fa2.write('%s:T%d '%(role,existing_entity[(entitypair['name'],entitypair['start'],entitypair['end'])]))
 	return Tnum
 
-def main(readpath,writepath):
+def main(readpath,writepath,artpath,nerpath):
 	files, names = get_files_name(readpath,'.txt')
 	print(names)
 	for name in names:
-		fa1 = open(writepath+name+'.a1','w')
-		fa2 = open(writepath+name+'.a2','w')
+		fa1 = open(writepath+'/'+name+'.a1','w')
+		fa2 = open(writepath+'/'+name+'.a2','w')
 		Tnum = 1
 		Enum = 1
-		ner = getner(name)
+		ner = getner(name,nerpath)
 		myusedtrigger = list()
 		myentity, mytrigger, myevent = getmyfile(readpath,name)
-		rizaentity, rizatrigger, rizaevent = getrizafile(name)
-		print(name)
-		shutil.copyfile(readpath+name+'.txt',writepath+name+'.txt')
-		print(rizaevent)
+		rizaentity, rizatrigger, rizaevent = getrizafile(name,artpath)
+		shutil.copyfile(readpath+'/'+name+'.txt',writepath+'/'+name+'.txt')
 		existing_trigger = dict()
 		existing_entity = dict()
 		usedner = list()
@@ -615,10 +624,15 @@ if __name__ == '__main__':
 						type=str,
 						default='',
 						help='The path to NER results.')
-	parser.add_argument('--write',
+
+	parser.add_argument('--writepath',
 						type=str,
 						default='',
 						required=True,
-						help='The path to NER results.')
+						help='The path to write aligned results. Suggested ${package home}/repos/semafor_aligned or sesame_aligned')
 	args = parser.parse_args()
-	main(args.pipeline,args.write)
+	pipe = dirformat(args.pipeline,'--pipeline')
+	art = dirformat(args.art,'--art')
+	ner = dirformat(args.ner,'--ner')
+	write = dirformat(args.writepath,'--writepath')
+	main(pipe,write,art,ner)
