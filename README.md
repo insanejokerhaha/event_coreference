@@ -1,10 +1,10 @@
-# selflearning
+# event_coreference_pipeline
 
 #### Description
 This is the project for event extraction and event coreferenece utilising SRL tools including DeepSRL, Semafor and Open-sesame. The coreference part utilising pre-trained Word2Vec binary model and/or frame embeddings (trained on open-sesame annotations).
 
 #### Software Architecture
-Software architecture description
+The package should be able to run in Python 2.7
 
 #### Installation
 Before using this package, please make sure DeepSRL (https://github.com/luheng/deep_srl.git), Semafor (https://github.com/Noahs-ARK/semafor.git), and open-sesame (https://github.com/swabhs/open-sesame.git) are able to running on your computer. 
