@@ -124,7 +124,7 @@ def getsrl(filepath,srl_storing_path):
 	os.system('python2 '+con.conf['sesame_path']+'/sesame/argid.py --mode predict --model_name fn1.7-pretrained-argid --raw_input '+con.conf['sesame_path']+'/logs/fn1.7-pretrained-frameid/predicted-frames.conll')
 	os.system('mv '+con.conf['sesame_path']+'/logs/fn1.7-pretrained-argid/predicted-args.conll '+srl_storing_path+'/'+filename+'.conll')
 	os.chdir(current)
-	srlfile = srl_storing_path+filename+'.conll'
+	srlfile = srl_storing_path+'/'+filename+'.conll'
 	return srlfile
 
 def spans(sentence,tokens):

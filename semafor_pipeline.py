@@ -117,7 +117,6 @@ def spans(sentence,tokens):
 	offset = 0
 	trymid = 0
 	for seq in range(len(tokens)):
-		#print(len(tokens[seq]))
 		try:
 			trymid = sentence.index(tokens[seq], offset)
 			if trymid-offset > 100:
@@ -134,16 +133,38 @@ def spans(sentence,tokens):
 				yield [offset,offset+len(tokens[seq])]
 				offset += len(tokens[seq])
 		except ValueError as ve:
-			trymid = sentence.index(tokdic[tokens[seq]], offset)
-			offset = trymid
-			yield [offset,offset+len(tokdic[tokens[seq]])]
-			offset += len(tokdic[tokens[seq]])
-			#print("Dict add: %d"%offset)
+			try:
+				trymid = sentence.index(tokdic[tokens[seq]], offset)
+				offset = trymid
+				yield [offset,offset+len(tokdic[tokens[seq]])]
+				offset += len(tokdic[tokens[seq]])
+				#print("Dict add: %d"%offset)
+			except KeyError as ke:
+				if tokens[seq] == u"'s":
+					trymid = sentence.index(u"’s", offset)
+					offset = trymid
+					yield [offset,offset+len(u"’s")]
+					offset += len(u"’s")
+				else:
+					raise ke
+			except ValueError as ve:
+				if tokens[seq] == u"``":
+					trymid = sentence.index(u"“", offset)
+					offset = trymid
+					yield [offset,offset+len(u"“")]
+					offset += len(u"“")
+				elif tokens[seq] == u"''":
+					trymid = sentence.index(u"”", offset)
+					offset = trymid
+					yield [offset,offset+len(u"”")]
+					offset += len(u"”")
+				else:
+					raise ve
 
 def getsrl(filepath,srl_storing_path):
 	filename = os.path.splitext(os.path.basename(filepath))[0]
-	os.system(con.conf['semafor_path']+' '+filepath+' '+srl_storing_path+'/'+filename+'.srl 1')
-	srlfile = srl_storing_path+filename+'.srl'
+	os.system(con.conf['semafor_path']+'/bin/runSemafor.sh '+filepath+' '+srl_storing_path+'/'+filename+'.srl 1')
+	srlfile = srl_storing_path+'/'+filename+'.srl'
 	return srlfile
 
 def double_frame_exists(frames,framepairs):
@@ -277,7 +298,7 @@ def rewrite(readfile,mapping,framepairs,verbframemapping,nounframemapping,adjfra
 	entityline = ''
 	triggerline = ''
 	if os.path.exists(srl_storing_path+'/'+os.path.splitext(os.path.basename(readfile))[0]+'.srl') == False:
-		importlabel = getsrl(Bioname+'.sent')
+		importlabel = getsrl(Bioname+'.sent',srl_storing_path)
 	else:
 		importlabel = srl_storing_path+'/'+os.path.splitext(os.path.basename(readfile))[0]+'.srl'
 	f = open(importlabel,'r')
@@ -1304,6 +1325,7 @@ if __name__ == "__main__":
 		fposadjmap = list()
 	List, filenames = get_files_name(read,'.txt')
 	for l in List:
+		print('processing: %s'%l)
 		rewrite(l,mapping,framepairs,fposverbmap,fposnounmap,fposadjmap,write,args.union,args.framepair,args.lex,args.filter,srl)
 		sys.stdout.flush()
 		time.sleep(1)

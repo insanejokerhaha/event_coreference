@@ -87,6 +87,9 @@ def conllprocess(file):
 	return framelist
 
 def spans(sentence,tokens):
+	#tokdic = {'-LRB-':'(','-RRB-':')','-LSB-':'[','-RSB-':']','-LCB-':'{','-RCB-':'}','``':'"',"''":'"'}
+	tokdic = {'``':"''","''":'``'}
+	newtokdic = {'``':'"',"''":'"'}
 	offset = 0
 	trymid = 0
 	for seq in range(len(tokens)):
@@ -103,16 +106,27 @@ def spans(sentence,tokens):
 				except KeyError as ke:
 					print(tokens[seq])
 					raise ke
+				except ValueError as ve:
+					trymid = sentence.index(newtokdic[tokens[seq]], offset)
+					offset = trymid
+					yield [offset,offset+len(newtokdic[tokens[seq]])]
+					offset += len(newtokdic[tokens[seq]])
+					print("NormalnewDict add: %d"%offset)
 			else:
 				offset = trymid
 				yield [offset,offset+len(tokens[seq])]
 				offset += len(tokens[seq])
 		except ValueError as ve:
-			trymid = sentence.index(tokdic[tokens[seq]], offset)
-			offset = trymid
-			yield [offset,offset+len(tokdic[tokens[seq]])]
-			offset += len(tokdic[tokens[seq]])
-
+			try:
+				trymid = sentence.index(tokdic[tokens[seq]], offset)
+				offset = trymid
+				yield [offset,offset+len(tokdic[tokens[seq]])]
+				offset += len(tokdic[tokens[seq]])
+			except ValueError as ve:
+				trymid = sentence.index(newtokdic[tokens[seq]], offset)
+				offset = trymid
+				yield [offset,offset+len(newtokdic[tokens[seq]])]
+				offset += len(newtokdic[tokens[seq]])
 
 def format_write(counter,f):
 	for x,y in counter.items():
