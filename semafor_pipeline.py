@@ -32,14 +32,13 @@ from neural_srl.theano.tagger import BiLSTMTaggerModel
 from neural_srl.theano.util import floatX
 
 def dirformat(path,arg):
-	if os.path.isdir(path):
+	if path.endswith('/') and os.path.isdir(path[:-1]):
+		return path[:-1]
+	elif os.path.isdir(path):
 		return path
 	else:
-		if os.path.isdir(path[:-1]):
-			return path[:-1]
-		else:
-			print('Invalid path of arg %s. Please check again.'%arg)
-			os._exit(0)
+		print('Invalid path of arg %s. Please check again.'%arg)
+		os._exit(0)
 
 def load_model(model_path, model_type):
 	config = configuration.get_config(os.path.join(model_path, 'config'))
@@ -139,31 +138,21 @@ def spans(sentence,tokens):
 				yield [offset,offset+len(tokdic[tokens[seq]])]
 				offset += len(tokdic[tokens[seq]])
 				#print("Dict add: %d"%offset)
-			except KeyError as ke:
-				if tokens[seq] == u"'s":
-					trymid = sentence.index(u"’s", offset)
+			except ValueError as ke:
+				if tokens[seq] == '``':
+					trymid = sentence.index(u'“', offset)
 					offset = trymid
-					yield [offset,offset+len(u"’s")]
-					offset += len(u"’s")
-				else:
-					raise ke
-			except ValueError as ve:
-				if tokens[seq] == u"``":
-					trymid = sentence.index(u"“", offset)
+					yield [offset,offset+len(u'“')]
+					offset += len(u'“')
+				elif tokens[seq] == "''": #“ ” ‘ ’ 
+					trymid = sentence.index(u'”', offset)
 					offset = trymid
-					yield [offset,offset+len(u"“")]
-					offset += len(u"“")
-				elif tokens[seq] == u"''":
-					trymid = sentence.index(u"”", offset)
-					offset = trymid
-					yield [offset,offset+len(u"”")]
-					offset += len(u"”")
-				else:
-					raise ve
+					yield [offset,offset+len(u'”')]
+					offset += len(u'”')
 
 def getsrl(filepath,srl_storing_path):
 	filename = os.path.splitext(os.path.basename(filepath))[0]
-	os.system(con.conf['semafor_path']+'/bin/runSemafor.sh '+filepath+' '+srl_storing_path+'/'+filename+'.srl 1')
+	os.system(con.conf['semafor_path']+'/bin/runSemafor.sh'+' '+filepath+' '+srl_storing_path+'/'+filename+'.srl 1')
 	srlfile = srl_storing_path+'/'+filename+'.srl'
 	return srlfile
 
@@ -267,6 +256,7 @@ def splitframes(pairwise_frames):
 	return frame1, frame2
 
 def rewrite(readfile,mapping,framepairs,verbframemapping,nounframemapping,adjframemapping,writing_path,union,match_framepair,lex,filt,srl_storing_path):
+	print('Processing: %s'%readfile)
 	Bioname = writing_path+'/'+os.path.splitext(os.path.basename(readfile))[0]
 	fread = codecs.open(readfile,'r',encoding='utf8')
 	lines = fread.readlines()
@@ -1240,7 +1230,7 @@ def rewrite(readfile,mapping,framepairs,verbframemapping,nounframemapping,adjfra
 	assert eventline_count == count
 
 if __name__ == "__main__":
-	tokdic = {'-LRB-':'(','-RRB-':')','-LSB-':'[','-RSB-':']','-LCB-':'{','-RCB-':'}','``':'"',"''":'"'}
+	tokdic = {'-LRB-':'(','-RRB-':')','-LSB-':'[','-RSB-':']','-LCB-':'{','-RCB-':'}','``':'"',"''":'"',"'s":u'’s'}
 	parser = argparse.ArgumentParser(description=__doc__)
 	parser.add_argument('--model',
 						type=str,
@@ -1309,7 +1299,7 @@ if __name__ == "__main__":
 	else:
 		framepairs = list()
 	if args.filter:
-		if os.path.exsits('repos/mappings/'+args.setname+'_semaforPOS.map'):
+		if os.path.exists('repos/mappings/'+args.setname+'_semaforPOS.map'):
 			fpos = open('repos/mappings/'+args.setname+'_semaforPOS.map','r')
 			fposlines = fpos.readlines()
 			fposverbmap = js.loads(fposlines[0])

@@ -33,14 +33,13 @@ from neural_srl.theano.tagger import BiLSTMTaggerModel
 from neural_srl.theano.util import floatX
 
 def dirformat(path,arg):
-	if os.path.isdir(path):
+	if path.endswith('/') and os.path.isdir(path[:-1]):
+		return path[:-1]
+	elif os.path.isdir(path):
 		return path
 	else:
-		if os.path.isdir(path[:-1]):
-			return path[:-1]
-		else:
-			print('Invalid path of arg %s. Please check again.'%arg)
-			os._exit(0)
+		print('Invalid path of arg %s. Please check again.'%arg)
+		os._exit(0)
 
 def load_model(model_path, model_type):
 	config = configuration.get_config(os.path.join(model_path, 'config'))

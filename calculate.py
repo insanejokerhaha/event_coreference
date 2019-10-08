@@ -4,14 +4,13 @@ import re
 import argparse
 
 def dirformat(path,arg):
-	if os.path.isdir(path):
+	if path.endswith('/') and os.path.isdir(path[:-1]):
+		return path[:-1]
+	elif os.path.isdir(path):
 		return path
 	else:
-		if os.path.isdir(path[:-1]):
-			return path[:-1]
-		else:
-			print('Invalid path of arg %s. Please check again.'%arg)
-			os._exit(0)
+		print('Invalid path of arg %s. Please check again.'%arg)
+		os._exit(0)
 
 def get_files_name(file_dir,suffix):
 	L = []
@@ -30,12 +29,14 @@ def main(gsdpath,compath):
 	print("-----------------------")
 	print(gsdnames)
 	equalNum = 0
+	test_equalNum = 0
 	gsdevents = 0
 	extevents = 0
 	unfcount = 0
 	fFN = open(compath+'/'+"false_negatives.txt",'w')
 	fFP = open(compath+'/'+"false_positives.txt",'w')
 	for file in gsdnames:
+		#print('Processing: %s'%file)
 		fFN.write(file+":\n")
 		fcontent = open(gsdpath+'/'+file+".txt",'r')
 		content = fcontent.read()
@@ -46,6 +47,7 @@ def main(gsdpath,compath):
 		fcomp = open(compath+'/'+file+".a2",'r')
 		fcomplines = fcomp.readlines()
 		fcomp.close()
+		events = list()
 		for line in lines:
 			if line.startswith('E'):#and line.split('	')[1].split()[0].startswith('Articulation:')
 				trig = re.findall('^E.*?:(T\d+)',line)
@@ -56,6 +58,7 @@ def main(gsdpath,compath):
 						linestart = int(x.split('	')[1].split()[1])
 						lineend = int(x.split('	')[1].split()[-1])
 						assert linestart < lineend
+						events.append([linestart,lineend,False])
 						for compline in fcomplines:
 							if compline.startswith('T'):#and compline.split('	')[1].split()[0] == 'Articulation'
 								complinestart = int(compline.split('	')[1].split()[1])
@@ -67,24 +70,30 @@ def main(gsdpath,compath):
 						if equalNum - testp == 0:
 							unfcount += 1
 							fFN.write(x+'\n')
-
+						break
+		repetitive = 0
 		for compline in fcomplines:
 			if compline.startswith('T'):
 				used = False
 				extevents += 1
 				complinestart = int(compline.split('	')[1].split()[1])
 				complineend = int(compline.split('	')[1].split()[2])
-				for line in lines:
-					if line.startswith('T'):
-						linestart = int(line.split('	')[1].split()[1])
-						lineend = int(line.split('	')[1].split()[2])
-						assert linestart < lineend
+				for event in events:
+					linestart = event[0]
+					lineend = event[1]
+					assert linestart < lineend
+					if event[2] == 0:	
 						if (complinestart < lineend and complinestart >= linestart) or (complineend <= lineend and complineend > linestart):
 							test_equalNum = test_equalNum + 1
 							used = True
-							break
+							event[2] = True
+					else:
+						if (complinestart < lineend and complinestart >= linestart) or (complineend <= lineend and complineend > linestart):
+							used = True
+							repetitive += 1
 				if used == False:
 					fFP.write(compline[:-1]+'	'+content[complinestart:complineend]+'\n')
+		extevents -= repetitive
 		assert test_equalNum == equalNum
 	fFN.close()
 	fFP.close()

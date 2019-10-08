@@ -3,14 +3,13 @@ import shutil
 import argparse
 
 def dirformat(path,arg):
-	if os.path.isdir(path):
+	if path.endswith('/') and os.path.isdir(path[:-1]):
+		return path[:-1]
+	elif os.path.isdir(path):
 		return path
 	else:
-		if os.path.isdir(path[:-1]):
-			return path[:-1]
-		else:
-			print('Invalid path of arg %s. Please check again.'%arg)
-			os._exit(0)
+		print('Invalid path of arg %s. Please check again.'%arg)
+		os._exit(0)
 
 def get_files_name(file_dir,suffix):
 	L = []
@@ -34,21 +33,21 @@ def splitline(line,start):
 		linedict = {'ID':lineele[0],'name':detail[0],'start':int(detail[1]),'end':int(detail[2])}
 		return linedict
 	elif start == 'E':
-		cause, theme, trigger = '', '', ''
-		for det in detail:
-			if det.startswith('Agent') or det.startswith('Cause'):
-				cause = det.split(':')[1]
-			elif det.startswith('Subject') or det.startswith('Theme'):
-				theme = det.split(':')[1]
-			else:
-				trigger = det.split(':')[1]
+		trigger = detail[0].split(':')[1]
+		cause, theme = '', ''
+		if len(detail) > 1:
+			for det in detail[1:]:
+				if det.startswith('Agent') or det.startswith('Cause'):
+					cause = det.split(':')[1]
+				elif det.startswith('Subject') or det.startswith('Theme'):
+					theme = det.split(':')[1]
 		assert trigger != ''
 		linedict = {'ID':lineele[0],'trigger':trigger,'cause':cause,'theme':theme}
 		return linedict
 
 def getmyfile(readpath,name):
-	fa1 = open(readpath+'/'+name+'.a1','r')
-	fa2 = open(readpath+'/'+name+'.a2','r')
+	fa1 = open(readpath+'/'+os.path.splitext(name)[0]+'.a1','r')
+	fa2 = open(readpath+'/'+os.path.splitext(name)[0]+'.a2','r')
 	a1 = fa1.readlines()
 	entity = dict()
 	for siga1 in a1:
@@ -69,8 +68,8 @@ def getmyfile(readpath,name):
 	return entity, trigger, event
 			
 def getrizafile(name,path):
-	fa1 = open(path+'/'+name+'.a1','r')
-	fa2 = open(path+'/'+name+'.a2','r')
+	fa1 = open(path+'/'+os.path.splitext(name)[0]+'.a1','r')
+	fa2 = open(path+'/'+os.path.splitext(name)[0]+'.a2','r')
 	a1 = fa1.readlines()
 	entity = dict()
 	for siga1 in a1:
@@ -91,17 +90,14 @@ def getrizafile(name,path):
 	return entity, trigger, event
 
 def getner(name,path):
-	try:
-		fner = open(path+'/'+name+'.ann','r')
-		ner = fner.readlines()
-		rightner = list()
-		for signer in ner:
-			signerdict = splitline(signer,'T')
-			rightner.append(signerdict)
-		return rightner
-	except FileNotFoundError as fe:
-		print("File "+args.ner+name+'.ann Not Found')
-		raise fe
+	fner = open(path+'/'+os.path.splitext(name)[0]+'.ann','r')
+	ner = fner.readlines()
+	rightner = list()
+	for signer in ner:
+		signerdict = splitline(signer,'T')
+		rightner.append(signerdict)
+	return rightner
+
 
 def countnumber(listofdict,entset):
 	a = 0

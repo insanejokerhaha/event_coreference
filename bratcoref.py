@@ -9,14 +9,13 @@ import argparse
 import codecs
 
 def dirformat(path,arg):
-	if os.path.isdir(path):
+	if path.endswith('/') and os.path.isdir(path[:-1]):
+		return path[:-1]
+	elif os.path.isdir(path):
 		return path
 	else:
-		if os.path.isdir(path[:-1]):
-			return path[:-1]
-		else:
-			print('Invalid path of arg %s. Please check again.'%arg)
-			os._exit(0)
+		print('Invalid path of arg %s. Please check again.'%arg)
+		os._exit(0)
 
 def get_files_name(file_dir,suffix):
 	L = []
